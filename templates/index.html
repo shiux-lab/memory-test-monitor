@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>自动化测试监控中心 (Vue版)</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background-color: #f4f4f9; padding: 20px; }
+        .container { max-width: 1400px; margin: 0 auto; background: white; padding: 25px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        
+        /* 模式切换 */
+        .mode-tabs { display: flex; justify-content: center; gap: 15px; margin-bottom: 25px; }
+        .tab-btn { padding: 10px 30px; border-radius: 20px; cursor: pointer; font-weight: bold; color: #666; border: 2px solid #eee; transition: 0.3s; display: flex; align-items: center; gap: 8px;}
+        .tab-btn:hover { background: #f8f9fa; }
+        .tab-btn.active { transform: scale(1.05); box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .tab-reboot.active { border-color: #007bff; background: #e7f1ff; color: #007bff; }
+        .tab-mem.active { border-color: #00897b; background: #e0f2f1; color: #00897b; }
+        .tab-mt.active { border-color: #d81b60; background: #fce4ec; color: #d81b60; }
+
+        /* 添加栏 */
+        .add-bar { display: flex; gap: 15px; margin-bottom: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px; border: 1px solid #eee; align-items: flex-end; }
+        .input-group { display: flex; flex-direction: column; flex: 1; }
+        .input-group label { font-size: 12px; font-weight: bold; color: #666; margin-bottom: 5px; }
+        .input-group input { padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; outline: none; }
+        .input-group input:focus { border-color: #007bff; }
+
+        /* 表格样式 */
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #eee; vertical-align: middle; }
+        th { background: #f1f3f5; color: #495057; font-weight: 600; text-transform: uppercase; font-size: 13px; letter-spacing: 0.5px; }
+        tr:hover { background-color: #fafafa; }
+        
+        /* 状态徽章 */
+        .badge { padding: 5px 10px; border-radius: 4px; font-size: 12px; font-weight: bold; display: inline-block; white-space: nowrap; }
+        .bg-run { background: #e3f2fd; color: #0d47a1; border: 1px solid #90caf9; }
+        .bg-done { background: #e8f5e9; color: #1b5e20; border: 1px solid #a5d6a7; }
+        .bg-warn { background: #fff3cd; color: #856404; border: 1px solid #ffeeba; }
+        .bg-err { background: #ffebee; color: #b71c1c; border: 1px solid #ef9a9a; }
+        .bg-idle { background: #f5f5f5; color: #616161; border: 1px solid #e0e0e0; }
+        .bg-deploy { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+
+        /* 按钮 */
+        button { padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer; color: white; font-size: 13px; margin-right: 5px; transition: 0.2s; display: inline-flex; align-items: center; gap: 4px; }
+        button:disabled { opacity: 0.6; cursor: not-allowed; filter: grayscale(100%); }
+        button:active { transform: translateY(1px); }
+        .btn-blue { background: #007bff; }
+        .btn-blue:hover { background: #0056b3; }
+        .btn-green { background: #28a745; }
+        .btn-green:hover { background: #1e7e34; }
+        .btn-orange { background: #fd7e14; }
+        .btn-red { background: #dc3545; }
+        .btn-teal { background: #00897b; }
+        .btn-teal:hover { background: #00695c; }
+        .btn-pink { background: #d81b60; }
+        .btn-pink:hover { background: #ad1457; }
+        .btn-gray { background: #6c757d; }
+
+        /* 模态框 */
+        .modal-mask { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 999; backdrop-filter: blur(2px); }
+        .modal-box { background: white; padding: 25px; border-radius: 8px; width: 400px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        @keyframes popIn { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        .input-row { margin-bottom: 20px; }
+        .input-row label { display: block; margin-bottom: 8px; font-weight: bold; color: #333; }
+        .input-row input { width: 100%; padding: 10px; box-sizing: border-box; border: 1px solid #ddd; border-radius: 4px; }
+    </style>
+</head>
+<body>
+
+{% raw %}
+<div id="app" class="container">
+    <h2 style="text-align: center; margin-bottom: 30px; color: #333;">🚀 自动化测试控制台</h2>
+
+    <div class="mode-tabs">
+        <div class="tab-btn tab-reboot" :class="{active: mode === 'reboot'}" @click="mode = 'reboot'">
+            <i class="bi bi-arrow-repeat"></i> 重启压力测试
+        </div>
+        <div class="tab-btn tab-mem" :class="{active: mode === 'meminfo'}" @click="mode = 'meminfo'">
+            <i class="bi bi-cpu"></i> 内存信息检查
+        </div>
+        <div class="tab-btn tab-mt" :class="{active: mode === 'memtest'}" @click="mode = 'memtest'">
+            <i class="bi bi-speedometer2"></i> Memtest 压测
+        </div>
+    </div>
+
+    <div class="add-bar">
+        <div class="input-group" style="flex: 0.5;">
+            <label>Server ID</label>
+            <input type="text" v-model="newSrv.id" placeholder="例如: Srv-01">
+        </div>
+        <div class="input-group">
+            <label>BMC IP</label>
+            <input type="text" v-model="newSrv.bmc" placeholder="192.168.x.x">
+        </div>
+        <div class="input-group">
+            <label>OS IP</label>
+            <input type="text" v-model="newSrv.os" placeholder="10.0.x.x">
+        </div>
+        <button class="btn-blue" @click="addServer" style="height: 38px; padding: 0 20px;">
+            <i class="bi bi-plus-lg"></i> 添加监控
+        </button>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th width="100">ID</th>
+                <th width="220">IP 信息</th>
+                <th>{{ modeName }} 状态</th>
+                <th width="420" style="text-align: right;">操作控制</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr v-for="srv in servers" :key="srv.server_id">
+                <td><b>{{ srv.server_id }}</b></td>
+                <td>
+                    <div style="font-weight: 500;">BMC: {{ srv.bmc_ip }}</div>
+                    <div style="color: #888; font-size: 12px; margin-top: 2px;">OS: {{ srv.os_ip || '未配置' }}</div>
+                </td>
+                
+                <td>
+                    <div v-if="!srv.os_online && srv.reboot_status !== 'Running' && srv.memtest_status !== 'Running'">
+                        <span class="badge bg-err"><i class="bi bi-wifi-off"></i> OS 离线</span>
+                        <div style="font-size: 11px; color: #dc3545; margin-top: 4px;">无法连接测试</div>
+                    </div>
+
+                    <div v-else>
+                        
+                        <div v-if="!srv.os_online" style="margin-bottom: 5px;">
+                            <span class="badge bg-warn" style="font-size: 10px;">
+                                <i class="bi bi-arrow-repeat"></i> 重启/断连中...
+                            </span>
+                        </div>
+
+                        <div v-if="mode === 'reboot'">
+                            <span :class="getStatusBadge(srv.reboot_status)">{{ srv.reboot_status }}</span>
+                            <div style="font-size: 12px; margin-top: 4px; color: #666;">
+                                {{ srv.reboot_phase }}
+                            </div>
+                            <div v-if="srv.reboot_status !== 'Idle'" style="font-size: 11px; color: #888; margin-top: 2px;">
+                                轮次: <b>{{ srv.reboot_loop }}</b>
+                            </div>
+                            <div style="font-size: 10px; color: #aaa; margin-top: 2px;">
+                                上报: {{ srv.last_report_time }}
+                            </div>
+                        </div>
+
+                        <div v-if="mode === 'memtest'">
+                            <span :class="getStatusBadge(srv.memtest_status)">{{ srv.memtest_status }}</span>
+                            <div style="font-size: 12px; margin-top: 4px; color: #666;">{{ srv.memtest_phase }}</div>
+                            <div style="font-size: 10px; color: #aaa; margin-top: 2px;">
+                                上报: {{ srv.last_report_time }}
+                            </div>
+                        </div>
+
+                        <div v-if="mode === 'meminfo'">
+                            <span class="badge bg-idle">就绪</span>
+                        </div>
+                    </div>
+                </td>
+
+                <td style="text-align: right;">
+                    <div v-if="mode === 'reboot'">
+                        <button class="btn-blue" @click="api(srv.server_id, 'deploy')" :disabled="!srv.os_online">部署</button>
+                        <button class="btn-green" @click="api(srv.server_id, 'start_test')" :disabled="srv.reboot_status !== 'Deployed'">启动</button>
+                        <button class="btn-orange" @click="api(srv.server_id, 'stop_test')">停止</button>
+                        <button class="btn-red" @click="api(srv.server_id, 'reset_files')">重置</button>
+                    </div>
+
+                    <div v-if="mode === 'memtest'">
+                        <button class="btn-pink" @click="memtestDeploy(srv.server_id)" :disabled="!srv.os_online">部署</button>
+                        <button class="btn-pink" @click="openConfigModal(srv.server_id)" :disabled="srv.memtest_status !== 'Deployed'">配置</button>
+                        <button class="btn-pink" @click="memtestArchive(srv.server_id)">归档</button>
+                    </div>
+                    
+                    <div v-if="mode === 'meminfo'">
+                        <button class="btn-teal" @click="runMemInfo(srv.server_id)" :disabled="!srv.os_online"><i class="bi bi-play"></i> 检查</button>
+                        <button class="btn-orange" @click="downloadMemInfo(srv.server_id)" :disabled="!srv.os_online"><i class="bi bi-download"></i> 下载结果</button>
+                    </div>
+
+                    <button class="btn-gray" @click="removeServer(srv.server_id)" style="margin-left: 8px;" title="移除"><i class="bi bi-trash3"></i></button>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+
+    <div v-if="showModal" class="modal-mask" @click.self="showModal = false">
+        <div class="modal-box">
+            <h3 style="margin-top: 0;">启动配置 - {{ currentId }}</h3>
+            <div class="input-row">
+                <label>压测时长 (Runtime, 秒):</label>
+                <input type="text" v-model="configRuntime" placeholder="例如: 3600">
+                <div style="font-size: 12px; color: #888; margin-top: 5px;">* 推荐: 12小时=43200, 24小时=86400</div>
+            </div>
+            <div style="text-align: right; display: flex; justify-content: flex-end; gap: 10px;">
+                <button class="btn-gray" @click="showModal = false">取消</button>
+                <button class="btn-green" @click="confirmStartMemtest">确认启动</button>
+            </div>
+        </div>
+    </div>
+
+</div>
+{% endraw %}
+
+<script>
+    const { createApp } = Vue;
+    const API_BASE = ""; 
+
+    createApp({
+        data() {
+            return {
+                mode: 'reboot',
+                servers: [],
+                timer: null,
+                
+                // 新增服务器数据
+                newSrv: { id: '', bmc: '', os: '' },
+
+                // 弹窗相关
+                showModal: false,
+                currentId: null,
+                configRuntime: "43200"
+            }
+        },
+        computed: {
+            modeName() {
+                const map = { reboot: '重启压力', memtest: 'Memtest', meminfo: '内存信息' };
+                return map[this.mode];
+            }
+        },
+        mounted() {
+            this.refreshStatus();
+            this.timer = setInterval(this.refreshStatus, 3000);
+        },
+        methods: {
+            getStatusBadge(status) {
+                if (status === 'Running') return 'badge bg-run';
+                if (status === 'Finished') return 'badge bg-done';
+                if (status === 'Deployed') return 'badge bg-deploy';
+                if (status === 'Stopped') return 'badge bg-warn';
+                return 'badge bg-idle';
+            },
+            
+            async api(id, action, payload = {}) {
+                if (!confirm(`确定对 ${id} 执行 ${action}?`)) return;
+                try {
+                    const res = await fetch(`${API_BASE}/servers/${id}/${action}`, {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify(payload)
+                    });
+                    const data = await res.json();
+                    alert(data.message);
+                    this.refreshStatus();
+                } catch (e) { alert("请求失败"); }
+            },
+
+            async refreshStatus() {
+                try {
+                    const res = await fetch(`${API_BASE}/monitor/refresh`, { method: 'POST' });
+                    const data = await res.json();
+                    this.servers = data.results;
+                } catch (e) { console.error("刷新失败", e); }
+            },
+
+            // --- 添加/删除服务器 ---
+            async addServer() {
+                if (!this.newSrv.id || !this.newSrv.bmc) return alert("ID 和 BMC IP 必填");
+                const payload = { 
+                    server_id: this.newSrv.id, 
+                    bmc_ip: this.newSrv.bmc, 
+                    os_ip: this.newSrv.os || null,
+                    // 后端已有默认 ssh_user/pass，此处可不传
+                };
+                
+                await fetch(`${API_BASE}/servers/add`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(payload)
+                });
+                
+                // 清空输入框并刷新
+                this.newSrv = { id: '', bmc: '', os: '' };
+                this.refreshStatus();
+            },
+
+            async removeServer(id) {
+                if(!confirm(`⚠️ 确定要移除 ${id} 吗？\n注意：这不会停止正在运行的任务。`)) return;
+                await fetch(`${API_BASE}/servers/delete/${id}`, { method: 'DELETE' });
+                this.refreshStatus();
+            },
+
+            // --- Memtest 逻辑 ---
+            async memtestDeploy(id) { this.api(id, 'memtest/deploy'); },
+            openConfigModal(id) {
+                this.currentId = id;
+                this.showModal = true;
+            },
+            async confirmStartMemtest() {
+                if(!this.configRuntime) return alert("请输入时间");
+                // 启动不需要二次 confirm，弹窗本身就是确认
+                const res = await fetch(`${API_BASE}/servers/${this.currentId}/memtest/start`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ runtime: this.configRuntime })
+                });
+                const data = await res.json();
+                alert(data.message);
+                this.showModal = false;
+                this.refreshStatus();
+            },
+            async memtestArchive(id) { this.api(id, 'memtest/archive'); },
+
+            // --- MemInfo 逻辑 ---
+            async runMemInfo(id) {
+                if(!confirm(`确定在 ${id} 执行内存检查？`)) return;
+                // 1. 自动部署
+                await fetch(`${API_BASE}/servers/${id}/meminfo/deploy`, { method: 'POST' });
+                // 2. 执行脚本
+                const res = await fetch(`${API_BASE}/servers/${id}/meminfo/run`, { method: 'POST' });
+                const data = await res.json();
+                alert(data.message);
+            },
+            downloadMemInfo(id) {
+                // 直接打开新窗口下载
+                window.open(`${API_BASE}/servers/${id}/meminfo/download`, '_blank');
+            }
+        }
+    }).mount('#app');
+</script>
+</body>
+</html>
