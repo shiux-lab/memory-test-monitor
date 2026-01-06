@@ -1,7 +1,5 @@
-import os
-
 # 本机后端地址 (开发/生产环境修改这里即可)
-BACKEND_IP_PORT = "172.16.69.35:8080"  # 你的开发环境端口
+BACKEND_IP_PORT = "172.16.*.*:8080"  # 你的开发环境端口
 
 # --- 内存检查测试配置 ---
 SCRIPT_MEM_INFO_NAME = "get_memory_info.sh"
